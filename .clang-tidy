@@ -1,0 +1,42 @@
+---
+Checks: >-
+  -*,
+  google-build-using-namespace,
+  google-explicit-constructor,
+  google-readability-casting,
+  google-readability-namespace-comments,
+  readability-identifier-naming
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(^|[/\\])(include|src|app)[/\\]'
+ExcludeHeaderFilterRegex: '(^|[/\\])(third_party|build[^/\\]*|win_build[^/\\]*)[/\\]'
+CheckOptions:
+  readability-identifier-naming.NamespaceCase: lower_case
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  readability-identifier-naming.TypeTemplateParameterCase: CamelCase
+  readability-identifier-naming.FunctionCase: CamelCase
+  readability-identifier-naming.FunctionIgnoredRegexp: '^(main|at|start_t|end_t|elapsed_msec|average_msec|impl)$'
+  readability-identifier-naming.VariableCase: lower_case
+  readability-identifier-naming.ParameterCase: lower_case
+  readability-identifier-naming.ClassMemberCase: lower_case
+  readability-identifier-naming.ClassMemberSuffix: '_'
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.EnumConstantPrefix: k
+  readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
+  readability-identifier-naming.MacroDefinitionIgnoredRegexp: '^(_OPENMP|NOMINMAX|GRTMESH_.*_(H|CUH)_)$'
+  readability-identifier-naming.GlobalConstantCase: CamelCase
+  readability-identifier-naming.GlobalConstantPrefix: k
+  readability-identifier-naming.ConstexprVariableCase: CamelCase
+  readability-identifier-naming.ConstexprVariablePrefix: k
+  readability-identifier-naming.LocalConstantIgnoredRegexp: '^k[A-Z].*'
+  readability-identifier-naming.ClassConstantCase: CamelCase
+  readability-identifier-naming.ClassConstantPrefix: k
+  readability-identifier-naming.PrivateMemberCase: lower_case
+  readability-identifier-naming.PrivateMemberSuffix: '_'
+  readability-identifier-naming.ProtectedMemberCase: lower_case
+  readability-identifier-naming.ProtectedMemberSuffix: '_'
+  # This category includes public struct fields and public class members.
+  readability-identifier-naming.MemberIgnoredRegexp: '^[a-z][a-z0-9]*(_[a-z0-9]+)*_$'

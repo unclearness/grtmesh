@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+type: software
+title: "grtmesh: GPU-native real-time textured mesh reconstruction with seam-aware multi-view radiometric correction"
+authors:
+  - family-names: Sato
+    given-names: Hiroyuki
+    affiliation: "MinD in a Device, Inc."
+repository-code: "https://github.com/unclearness/grtmesh"
+license: PolyForm-Noncommercial-1.0.0
+preferred-citation:
+  type: conference-paper
+  title: "GPU-Native Real-Time Textured Mesh Reconstruction with Seam-Aware Multi-View Radiometric Correction"
+  authors:
+    - family-names: Sato
+      given-names: Hiroyuki
+      affiliation: "MinD in a Device, Inc."
+  collection-title: "Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV)"
+  year: 2027

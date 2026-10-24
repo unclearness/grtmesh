@@ -1,0 +1,27 @@
+name: C++ lint
+on:
+  pull_request:
+    paths:
+      - 'include/**'
+      - 'src/**'
+      - 'app/**'
+      - 'tests/**/*.cc'
+      - 'tests/**/*.h'
+      - '.clang*'
+      - 'CPPLINT.cfg'
+      - 'tools/**'
+      - '.github/workflows/cpp-lint.yml'
+  push:
+    branches: [wacv2027_camera_ready]
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r tools/requirements-lint.txt
+      - run: python tools/lint_cpp.py

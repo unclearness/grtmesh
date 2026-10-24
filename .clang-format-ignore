@@ -1,0 +1,6 @@
+third_party/**
+build*/**
+win_build*/**
+bin*/**
+lib*/**
+.lint-venv/**

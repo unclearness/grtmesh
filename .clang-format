@@ -1,0 +1,6 @@
+# Keep this version aligned with tools/requirements-lint.txt.
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 80
+DerivePointerAlignment: false
+PointerAlignment: Left
