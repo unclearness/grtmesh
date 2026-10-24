@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>grtmesh: GPU-Native Real-Time Textured Mesh Reconstruction</title>
+<meta name="description" content="GPU-native real-time textured mesh reconstruction from multiple RGB-D sensors with seam-aware multi-view radiometric correction (WACV 2027).">
+<meta property="og:title" content="GPU-Native Real-Time Textured Mesh Reconstruction with Seam-Aware Multi-View Radiometric Correction">
+<meta property="og:description" content="Per-frame textured meshes from multiple RGB-D sensors, fully on the GPU, in 13.1 ms per frame. WACV 2027.">
+<meta property="og:image" content="static/images/pipeline.png">
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <p class="venue">WACV 2027</p>
+  <p class="decision">Accepted in Round 1</p>
+  <h1>GPU-Native Real-Time Textured Mesh Reconstruction with Seam-Aware Multi-View Radiometric Correction</h1>
+  <p class="authors"><span class="author">Hiroyuki Sato</span></p>
+  <p class="affiliation">MinD in a Device, Inc.</p>
+  <nav class="links" aria-label="Paper resources">
+    <!-- TODO: replace the paper links once the arXiv / CVF Open Access URLs exist. -->
+    <a class="button is-pending" href="#" aria-disabled="true" title="Coming soon">Paper</a>
+    <a class="button is-pending" href="#" aria-disabled="true" title="Coming soon">Supplementary</a>
+    <a class="button" href="https://github.com/unclearness/grtmesh">Code</a>
+    <a class="button" href="#video">Video</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="teaser">
+  <figure>
+    <div class="compare-grid" role="group" aria-label="Held-out re-rendering on office2">
+      <div><img src="static/images/office2_gt.jpg" alt="Ground-truth image of a held-out camera on office2" loading="lazy"><span>Ground truth</span></div>
+      <div><img src="static/images/office2_o3d_nr.jpg" alt="Open3D (CPU) reconstruction with per-vertex color" loading="lazy"><span>Open3D (CPU)</span></div>
+      <div><img src="static/images/office2_nvblox.jpg" alt="nvblox reconstruction with per-vertex color" loading="lazy"><span>nvblox</span></div>
+      <div class="highlight"><img src="static/images/office2_ours.jpg" alt="Our textured mesh, rendered from the held-out camera" loading="lazy"><span>Ours (13.1 ms / frame)</span></div>
+      <div><img src="static/images/office2_poisson.jpg" alt="Offline baseline: screened Poisson reconstruction and mvs-texturing" loading="lazy"><span>Offline (~13 s / frame)</span></div>
+    </div>
+    <figcaption>Meshes reconstructed from five Kinects of CMU Panoptic <em>office2</em>, re-rendered from a camera that was not used as input.
+      Our textured meshes keep the facial and clothing detail that per-vertex color loses, at real-time speed.</figcaption>
+  </figure>
+</section>
+
+<section class="numbers" aria-label="Key results">
+  <div class="stat"><span class="value">13.1<small> ms</small></span><span class="label">per frame at 2 cm voxels, five sensors, including upload, preprocessing and seam correction</span></div>
+  <div class="stat"><span class="value">15.9<small>&times;</small></span><span class="label">faster than nvblox, 104&times; faster than Open3D (CPU) at 2 cm</span></div>
+  <div class="stat"><span class="value">29&ndash;90<small>&times;</small></span><span class="label">faster than nvblox / Open3D (CPU) at 5 mm voxels</span></div>
+  <div class="stat"><span class="value">27&ndash;33<small>%</small></span><span class="label">lower seam residual in the output atlas with the gain-field correction</span></div>
+</section>
+
+<section id="abstract">
+  <h2>Abstract</h2>
+  <p>
+  We present a GPU-native volumetric-video system for real-time reconstruction of
+  graphics-compatible textured triangle meshes from multiple RGB-D sensors.
+  Existing TSDF systems accelerate fusion and mesh extraction, but extending
+  them to per-frame textured meshing adds CPU mesh processing, CPU-side texturing
+  work, or extra CPU&ndash;GPU transfers between stages. After input staging, our
+  method keeps the reconstruction and
+  texturing stages (TSDF fusion, Marching Cubes, connected-component noise
+  removal, view-based texture mapping, inpainting, and radiometric seam
+  correction) resident on the GPU; no intermediate mesh or image data returns to
+  the host between these stages. A
+  fixed-size mesh-topology representation gives constant-time neighbor
+  access on the GPU and makes the downstream mesh-level
+  operations data-parallel. Because we texture each face from a single camera,
+  exposure seams that vary smoothly across each image remain; we estimate a per-camera
+  low-frequency gain field and bake it into the atlas on the GPU. On the CMU
+  Panoptic dataset, our method is faster
+  than the baselines at every tested voxel
+  resolution and number of sensors, achieves peak speedups of more than an order of magnitude
+  over CUDA-accelerated nvblox and CPU-based Open3D, and approaches an offline
+  textured-meshing baseline in
+  perceptual re-rendering quality.
+</p>
+</section>
+
+<section id="video">
+  <h2>Video</h2>
+  <!-- TODO: set data-youtube-id to the ID of the uploaded supplementary video. -->
+  <div class="video" data-youtube-id="">
+    <p class="video-placeholder">The supplementary video will be available here.</p>
+  </div>
+</section>
+
+<section id="method">
+  <h2>Method</h2>
+  <figure class="wide">
+    <img src="static/images/pipeline.png" alt="Pipeline: RGB-D input is uploaded once; TSDF fusion, Marching Cubes, noise removal, texture mapping, inpainting and radiometric seam correction run on the GPU; the mesh, UVs and corrected atlas return to the CPU." loading="lazy">
+    <figcaption>Every stage runs on the GPU. A fixed-size face-adjacency array (three neighbors per face) gives
+      constant-time neighbor access, so noise removal, texture mapping, inpainting and seam correction are all data-parallel per face.</figcaption>
+  </figure>
+  <div class="columns">
+    <div>
+      <h3>GPU-native textured meshing</h3>
+      <p>Depth from all sensors is fused in a single TSDF kernel, meshed with Marching Cubes, and cleaned by a
+        GPU connected-component pass. Each face takes its color from the best camera; faces no camera sees are
+        filled by propagating views from their neighbors. The input color images are stacked into one texture
+        atlas, so the mesh UVs are simply pixel coordinates in the source images.</p>
+    </div>
+    <div>
+      <h3>Seam-aware radiometric correction</h3>
+      <p>Where neighboring faces use different cameras, exposure differences show up as seams. We sample both
+        cameras along every seam, solve a smooth 24&times;16 log-gain field per camera with a few
+        matrix-free Jacobi iterations, and bake it into the atlas &mdash; all on the GPU, adding a few
+        milliseconds per frame. A temporal moving average keeps the correction stable in video.</p>
+    </div>
+  </div>
+  <figure class="wide">
+    <img src="static/images/seam_algorithm.png" alt="Seam correction: seams between cameras give paired samples that constrain per-camera gain grids; the solved fields are applied to the images." loading="lazy">
+  </figure>
+</section>
+
+<section id="runtime">
+  <h2>Real-time performance</h2>
+  <div class="columns">
+    <figure>
+      <img src="static/images/bench_voxel.png" alt="Per-frame time versus voxel size for Ours, nvblox, Open3D (CPU), Open3D (CPU, Uniform) and Open3D (CUDA); Ours is fastest at every size." loading="lazy">
+      <figcaption>Per-frame time versus voxel size (<em>office2</em>, five sensors, log scales).</figcaption>
+    </figure>
+    <figure>
+      <img src="static/images/bench_sensors.png" alt="Per-frame time versus number of sensors; Ours stays below all baselines." loading="lazy">
+      <figcaption>Per-frame time versus number of sensors (2 cm voxels).</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="quality">
+  <h2>Re-rendering from held-out cameras</h2>
+  <p>We reconstruct from five Kinects and render the result from five other Kinects that were never used as input.</p>
+  <div class="compare-grid" role="group" aria-label="Held-out re-rendering on band2">
+    <div><img src="static/images/band2_gt.jpg" alt="Ground truth, band2" loading="lazy"><span>Ground truth</span></div>
+    <div><img src="static/images/band2_o3d_nr.jpg" alt="Open3D (CPU), band2" loading="lazy"><span>Open3D (CPU)</span></div>
+    <div><img src="static/images/band2_nvblox.jpg" alt="nvblox, band2" loading="lazy"><span>nvblox</span></div>
+    <div class="highlight"><img src="static/images/band2_ours.jpg" alt="Ours, band2" loading="lazy"><span>Ours</span></div>
+    <div><img src="static/images/band2_poisson.jpg" alt="Offline baseline, band2" loading="lazy"><span>Offline</span></div>
+  </div>
+</section>
+
+<section id="seams">
+  <h2>Seam correction</h2>
+  <div class="columns">
+    <figure>
+      <img src="static/images/f5_full_off_box.jpg" alt="Held-out view without seam correction, with boxes on a wall junction and the floor" loading="lazy">
+      <figcaption>Without seam correction</figcaption>
+    </figure>
+    <figure>
+      <img src="static/images/f5_full_on_box.jpg" alt="The same view with seam correction" loading="lazy">
+      <figcaption>With seam correction</figcaption>
+    </figure>
+  </div>
+  <div class="zoom-grid">
+    <div><img src="static/images/f5_wall_gt.jpg" alt="Wall, ground truth" loading="lazy"><span>Wall: ground truth</span></div>
+    <div><img src="static/images/f5_wall_off.jpg" alt="Wall, without correction" loading="lazy"><span>without</span></div>
+    <div><img src="static/images/f5_wall_on.jpg" alt="Wall, with correction" loading="lazy"><span>with</span></div>
+    <div><img src="static/images/f5_floor_gt.jpg" alt="Floor, ground truth" loading="lazy"><span>Floor: ground truth</span></div>
+    <div><img src="static/images/f5_floor_off.jpg" alt="Floor, without correction" loading="lazy"><span>without</span></div>
+    <div><img src="static/images/f5_floor_on.jpg" alt="Floor, with correction" loading="lazy"><span>with</span></div>
+  </div>
+  <figure class="wide">
+    <img src="static/images/f6_tiles.jpg" alt="Each input camera's image and its solved low-frequency gain field; red brightens, blue darkens." loading="lazy">
+    <figcaption>Each input camera (top) and its solved gain field (bottom; red brightens, blue darkens).</figcaption>
+  </figure>
+</section>
+
+<section id="inhouse">
+  <h2>Noise removal and inpainting</h2>
+  <p>On a five-camera foreground capture with noisy depth, GPU noise removal suppresses floating fragments and inpainting fills faces no camera textures.</p>
+  <div class="compare-grid three">
+    <div><img src="static/images/own_texturing.jpg" alt="Texture mapping only: isolated fragments and untextured faces" loading="lazy"><span>Texture mapping</span></div>
+    <div><img src="static/images/own_nr.jpg" alt="With noise removal" loading="lazy"><span>+ noise removal</span></div>
+    <div class="highlight"><img src="static/images/own_nr_inpainting.jpg" alt="With noise removal and inpainting" loading="lazy"><span>+ inpainting</span></div>
+  </div>
+</section>
+
+<section id="inhouse-rgb">
+  <h2>Luminance vs. RGB seam correction</h2>
+  <p>On the in-house five-camera capture, whose cameras run independent white balance, the luminance-only field and the per-channel RGB field both equalize the seams between the cameras that texture the back.</p>
+  <div class="compare-grid four">
+    <div><img src="static/images/own_rgb_off.jpg" alt="In-house capture from behind without seam correction" loading="lazy"><span>Without</span></div>
+    <div class="highlight"><img src="static/images/own_rgb_lum.jpg" alt="With the luminance gain field" loading="lazy"><span>Luminance</span></div>
+    <div><img src="static/images/own_rgb_rgb.jpg" alt="With the per-channel RGB gain field" loading="lazy"><span>RGB</span></div>
+    <div><img src="static/images/own_rgb_camid.jpg" alt="Source-camera mosaic: each color marks the input camera that textures the face" loading="lazy"><span>Source camera</span></div>
+  </div>
+  <div class="zoom-grid">
+    <div><img src="static/images/own_rgb_tshirt_off.jpg" alt="T-shirt, without correction" loading="lazy"><span>T-shirt: without</span></div>
+    <div><img src="static/images/own_rgb_tshirt_lum.jpg" alt="T-shirt, luminance field" loading="lazy"><span>luminance</span></div>
+    <div><img src="static/images/own_rgb_tshirt_rgb.jpg" alt="T-shirt, RGB field" loading="lazy"><span>RGB</span></div>
+    <div><img src="static/images/own_rgb_waist_off.jpg" alt="Waist, without correction" loading="lazy"><span>Waist: without</span></div>
+    <div><img src="static/images/own_rgb_waist_lum.jpg" alt="Waist, luminance field" loading="lazy"><span>luminance</span></div>
+    <div><img src="static/images/own_rgb_waist_rgb.jpg" alt="Waist, RGB field" loading="lazy"><span>RGB</span></div>
+  </div>
+  <figure class="wide">
+    <img src="static/images/own_rgb_tiles.jpg" alt="Each input camera: masked input view, luminance gain field and RGB gain field" loading="lazy">
+    <figcaption>Each input camera: input view with the background masked (top), luminance gain (middle; red brightens, blue darkens) and RGB gain shown as the color it gives a neutral gray (bottom, tint exaggerated).</figcaption>
+  </figure>
+</section>
+
+<section id="bibtex">
+  <h2>BibTeX</h2>
+  <div class="bibtex">
+    <button type="button" class="copy" data-target="bibtex-text">Copy</button>
+<pre id="bibtex-text"><code>@inproceedings{sato2027grtmesh,
+  title     = {GPU-Native Real-Time Textured Mesh Reconstruction with Seam-Aware Multi-View Radiometric Correction},
+  author    = {Sato, Hiroyuki},
+  booktitle = {Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV)},
+  year      = {2027}
+}</code></pre>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>The code is source-available under the PolyForm Noncommercial License 1.0.0; evaluation and comparison for
+    academic publication are permitted for everyone. For commercial licensing, see
+    <a href="https://github.com/unclearness/grtmesh/blob/main/COMMERCIAL-LICENSE.md">COMMERCIAL-LICENSE.md</a>.</p>
+  <p>CMU Panoptic data: <a href="http://domedb.perception.cs.cmu.edu/">Panoptic Studio</a>.</p>
+</footer>
+
+<script>
+  // YouTube embed: fill data-youtube-id in the #video block to enable it.
+  document.querySelectorAll(".video[data-youtube-id]").forEach(function (box) {
+    var id = box.getAttribute("data-youtube-id");
+    if (!id) return;
+    var frame = document.createElement("iframe");
+    frame.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(id);
+    frame.title = "Supplementary video";
+    frame.allow = "accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+    frame.loading = "lazy";
+    box.innerHTML = "";
+    box.appendChild(frame);
+  });
+  document.querySelectorAll("button.copy").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var text = document.getElementById(button.dataset.target).innerText;
+      navigator.clipboard.writeText(text).then(function () {
+        button.textContent = "Copied";
+        setTimeout(function () { button.textContent = "Copy"; }, 1500);
+      });
+    });
+  });
+</script>
+</body>
+</html>
